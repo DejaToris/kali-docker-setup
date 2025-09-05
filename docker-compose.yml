@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  kali-container:
+    # Use baseline image instead of building from Dockerfile
+    image: kali-baseline:latest
+    container_name: kali-container
+    privileged: true
+    cgroupns: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      # Adjust these paths to match your host directories
+      - ~/kali-docker-shares/ovpn-configs:/ovpn-configs:ro
+      - ~/kali-docker-shares/scripts:/host-scripts:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    ports:
+      - "4444:22"    # SSH access - adjust port as needed
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Example: Multiple containers from same baseline
+  kali-htb:
+    image: kali-baseline:latest
+    container_name: kali-htb
+    privileged: true
+    cgroupns: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - ~/kali-docker-shares/ovpn-configs:/ovpn-configs:ro
+      - ~/kali-docker-shares/scripts:/host-scripts:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    ports:
+      - "4444:22"
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    profiles: ["htb"]  # Start with: docker-compose --profile htb up -d
+
+  kali-thm:
+    image: kali-baseline:latest
+    container_name: kali-thm
+    privileged: true
+    cgroupns: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - ~/kali-docker-shares/ovpn-configs:/ovpn-configs:ro
+      - ~/kali-docker-shares/scripts:/host-scripts:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    ports:
+      - "5555:22"
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    profiles: ["thm"]  # Start with: docker-compose --profile thm up -d
+
+# Optional: Add a network for multiple containers if needed
+networks:
+  default:
+    name: kali-network
