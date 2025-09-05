@@ -2,17 +2,13 @@ FROM kalilinux/kali-rolling
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/host-scripts:$PATH"
 
-# Update system and install systemd
-RUN apt-get update && \
-    apt-get install -y systemd systemd-sysv && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Update apt and install Kali metapackages
-RUN apt-get update && \
+# Create directories and update system packages
+RUN mkdir -p /ovpn-configs /host-scripts /var/run/sshd && \
+    apt-get update && \
     apt-get install -y \
+        systemd \
+        systemd-sysv \
         kali-tools-web \
         kali-tools-fuzzing \
         kali-tools-information-gathering \
@@ -38,14 +34,13 @@ RUN apt-get update && \
         && apt-get clean && \
         rm -rf /var/lib/apt/lists/*
 
-# Configure SSH (since we're forwarding port 22)
-RUN mkdir -p /var/run/sshd && \
-    echo 'root:kali' | chpasswd && \
+# Configure SSH and system settings
+RUN echo 'root:kali' | chpasswd && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-
-# Configure zsh as default shell
-RUN chsh -s /usr/bin/zsh root
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    chsh -s /usr/bin/zsh root && \
+    echo 'export PATH="/host-scripts:$PATH"' >> /root/.bashrc && \
+    echo 'export PATH="/host-scripts:$PATH"' >> /etc/bash.bashrc
 
 # Install oh-my-zsh for better zsh experience
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
@@ -201,32 +196,22 @@ EOF
 # typeset -g POWERLEVEL9K_MODE='nerdfont-complete'
 # EOF
 
-# Set proper permissions
-RUN chown root:root /root/.zshrc
-
-# Enable services
-RUN systemctl enable postgresql && \
-    systemctl enable ssh
-
-# Create directories for mounted content
-RUN mkdir -p /ovpn-configs /host-scripts
-
-# Add host-scripts to PATH permanently
-RUN echo 'export PATH="/host-scripts:$PATH"' >> /root/.bashrc && \
-    echo 'export PATH="/host-scripts:$PATH"' >> /etc/bash.bashrc && \
+# Set proper permissions and add PATH to zsh config
+RUN chown root:root /root/.zshrc && \
     echo 'export PATH="/host-scripts:$PATH"' >> /root/.zshrc
 
-# Clean up systemd for container use
+# Clean up systemd for container use and enable services
 RUN cd /lib/systemd/system/sysinit.target.wants/ && \
-    ls | grep -v systemd-tmpfiles-setup | xargs rm -f || true
-
-RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
+    ls | grep -v systemd-tmpfiles-setup | xargs rm -f || true && \
+    rm -f /lib/systemd/system/multi-user.target.wants/* \
     /etc/systemd/system/*.wants/* \
     /lib/systemd/system/local-fs.target.wants/* \
     /lib/systemd/system/sockets.target.wants/*udev* \
     /lib/systemd/system/sockets.target.wants/*initctl* \
     /lib/systemd/system/basic.target.wants/* \
-    /lib/systemd/system/anaconda.target.wants/* || true
+    /lib/systemd/system/anaconda.target.wants/* || true && \
+    systemctl enable postgresql && \
+    systemctl enable ssh
 
 # Create a startup script to initialize services
 RUN cat > /startup.sh << 'EOF'
