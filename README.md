@@ -1,9 +1,18 @@
-# Kali Custom Container Usage Guide
+# Kali Docker Container Setup
 
-## Quick Start
+A streamlined Docker setup for Kali Linux containers with pre-configured pentesting tools, oh-my-zsh, and powerlevel10k theme.
 
-### Method 1: Quick Deploy (Recommended)
+## Setup Instructions
+
+### 1. Clone and Setup
 ```bash
+# Clone the repository
+git clone https://github.com/DejaToris/kali-docker-setup.git
+cd kali-docker-setup
+
+# Make scripts executable
+chmod +x *.sh
+
 # First, create the baseline image (only needed once)
 ./create-baseline.sh
 
@@ -12,16 +21,18 @@
 ./quick-deploy.sh kali-htb 4444
 ```
 
-### Method 2: Using Docker Compose
+### 2. Alternative Methods
+
+#### Docker Compose
 ```bash
 # Start the container
 docker-compose up -d
 
 # Access the container
-docker-compose exec custom-kali /bin/bash
+docker-compose exec custom-kali zsh
 ```
 
-### Method 3: Manual Docker Commands
+#### Manual Docker Commands
 ```bash
 # Build the image
 docker build -t custom-kali .
@@ -38,7 +49,6 @@ docker run -d \
     --tmpfs /run \
     --tmpfs /run/lock \
     -p 4444:22 \
-    -p 8080:8080 \
     custom-kali
 ```
 
@@ -104,39 +114,8 @@ ssh root@localhost -p <port>
 
 ### Direct Docker Access
 ```bash
-docker exec -it custom-kali /bin/bash
+docker exec -it custom-kali zsh
 ```
-
-## Installed Tools
-
-### Metapackages Included:
-- **kali-tools-web**: Web application testing tools
-- **kali-tools-fuzzing**: Fuzzing tools for vulnerability discovery
-- **kali-tools-information-gathering**: Reconnaissance and info gathering tools
-
-### Key Tools Available:
-- Metasploit Framework (with working database)
-- Nmap and related tools
-- Web testing tools (Burp Suite, dirb, nikto, etc.)
-- Fuzzing tools (wfuzz, ffuf, etc.)
-- Information gathering tools (theHarvester, recon-ng, etc.)
-
-## Services
-
-The container automatically starts:
-- **PostgreSQL**: For Metasploit database
-- **SSH**: For remote access (port specified during container creation)
-- **Metasploit Database**: Pre-initialized and ready
-
-## Port Mappings
-
-| Host Port | Container Port | Purpose |
-|-----------|----------------|---------|
-| Variable | 22 | SSH access (specified when creating container) |
-| 8080 | 8080 | Web services (docker-compose only) |
-| 9001 | 9001 | Additional services (docker-compose only) |
-
-**Note**: When using `quick-deploy.sh`, only the SSH port is mapped and you specify it as an argument. The docker-compose method maps additional fixed ports.
 
 ## Common Commands
 
@@ -174,19 +153,27 @@ hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt \
       ssh://target.com
 ```
 
-### Zsh Features
+### Shell Features
 ```bash
-# Oh-My-Zsh is pre-configured with useful features:
-# - Auto-completion
-# - Syntax highlighting
-# - Git integration
-# - Plugin support
+# Powerlevel10k theme is pre-configured with:
+# - Directory and git status in prompt
+# - Command execution time
+# - Syntax highlighting and auto-suggestions
+# - Custom aliases for pentesting
 
-# Switch back to bash if needed
-bash
+# Pre-configured aliases:
+ll          # List files with details
+wordlists   # Browse seclists wordlists  
+weblist     # Browse web content wordlists
+nse         # Search nmap scripts
+myip        # Get external IP
+ports       # Show listening ports
 
-# Return to zsh
-zsh
+# Pre-configured functions:
+quickscan <target>         # Fast nmap scan
+dirb_common <url>         # Directory enumeration
+hydra_ssh <target> <user> # SSH password attack
+serve [port]              # Quick HTTP server
 ```
 
 ### Container Management

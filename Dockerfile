@@ -16,6 +16,7 @@ RUN mkdir -p /ovpn-configs /host-scripts /var/run/sshd && \
         ffuf \
         postgresql \
         openssh-server \
+        openvpn \
         vim \
         nano \
         curl \
