@@ -74,7 +74,7 @@ mkdir -p "$HOST_SCRIPTS_DIR"
 # Check if container already exists and is running
 if docker ps --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo "❌ Container '$CONTAINER_NAME' is already running."
-    echo "Access it with: docker exec -it $CONTAINER_NAME /bin/bash"
+    echo "Access it with: docker exec -it $CONTAINER_NAME zsh"
     echo "Or SSH with: ssh root@localhost -p $LOCAL_PORT (password: kali)"
     echo "Or use a different container name."
     exit 1
@@ -94,7 +94,7 @@ if docker ps -a --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; the
     echo ""
     echo "=== Connection Info ==="
     echo "SSH into container: ssh root@localhost -p $LOCAL_PORT (password: kali)"
-    echo "Direct access: docker exec -it $CONTAINER_NAME /bin/bash"
+    echo "Direct access: docker exec -it $CONTAINER_NAME zsh"
     exit 0
 fi
 
@@ -126,14 +126,14 @@ if docker ps --format 'table {{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     echo ""
     echo "=== Connection Info ==="
     echo "SSH into container: ssh root@localhost -p $LOCAL_PORT (password: kali)"
-    echo "Direct access: docker exec -it $CONTAINER_NAME /bin/bash"
+    echo "Direct access: docker exec -it $CONTAINER_NAME zsh"
     echo ""
     echo "=== Directory Mappings ==="
     echo "Host VPN configs ($HOST_OVPN_DIR) → Container (/ovpn-configs)"
     echo "Host scripts ($HOST_SCRIPTS_DIR) → Container (/host-scripts) [Added to PATH]"
     echo ""
     echo "=== Quick Start ==="
-    echo "docker exec -it $CONTAINER_NAME /bin/bash"
+    echo "docker exec -it $CONTAINER_NAME zsh"
 else
     echo "❌ Container failed to start. Check logs:"
     echo "docker logs $CONTAINER_NAME"

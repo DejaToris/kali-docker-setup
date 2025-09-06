@@ -13,6 +13,7 @@ RUN mkdir -p /ovpn-configs /host-scripts /var/run/sshd && \
         kali-tools-fuzzing \
         kali-tools-information-gathering \
         metasploit-framework \
+        ffuf \
         postgresql \
         openssh-server \
         vim \
@@ -42,27 +43,78 @@ RUN echo 'root:kali' | chpasswd && \
     echo 'export PATH="/host-scripts:$PATH"' >> /root/.bashrc && \
     echo 'export PATH="/host-scripts:$PATH"' >> /etc/bash.bashrc
 
-# Install oh-my-zsh for better zsh experience
-RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+# Clean up systemd for container use and enable services
+RUN cd /lib/systemd/system/sysinit.target.wants/ && \
+    ls | grep -v systemd-tmpfiles-setup | xargs rm -f || true && \
+    rm -f /lib/systemd/system/multi-user.target.wants/* \
+    /etc/systemd/system/*.wants/* \
+    /lib/systemd/system/local-fs.target.wants/* \
+    /lib/systemd/system/sockets.target.wants/*udev* \
+    /lib/systemd/system/sockets.target.wants/*initctl* \
+    /lib/systemd/system/basic.target.wants/* \
+    /lib/systemd/system/anaconda.target.wants/* || true && \
+    systemctl enable postgresql && \
+    systemctl enable ssh
 
-# ===== OH-MY-ZSH CUSTOMIZATIONS =====
+# Create startup script
+RUN cat > /startup.sh << 'EOF'
+#!/bin/bash
+# Wait for systemd to be ready
+sleep 2
 
-# Install additional oh-my-zsh plugins
-RUN git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-autosuggestions && \
+# Start PostgreSQL if not running
+if ! systemctl is-active postgresql >/dev/null 2>&1; then
+    systemctl start postgresql
+fi
+
+# Initialize metasploit database if needed
+if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw msf; then
+    msfdb init
+fi
+
+# Start SSH if not running
+if ! systemctl is-active ssh >/dev/null 2>&1; then
+    systemctl start ssh
+fi
+
+echo "=== Kali Container Ready ==="
+echo "SSH: Available on forwarded port -> 22 (container)"
+echo "Metasploit: Database initialized and ready"
+echo "VPN configs: Available in /ovpn-configs"
+echo "Custom scripts: Available in /host-scripts (added to PATH)"
+echo "================================"
+EOF
+
+# Create systemd service and enable it
+RUN cat > /etc/systemd/system/container-init.service << 'EOF' && \
+    chmod +x /startup.sh && \
+    systemctl enable container-init.service
+[Unit]
+Description=Container Initialization
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/startup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Install and configure oh-my-zsh with plugins and themes
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-autosuggestions && \
     git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting && \
-    git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-completions
-
-# Install powerlevel10k theme (popular theme)
-RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/themes/powerlevel10k
-
-# Create custom .zshrc with your preferred settings
-RUN cat > /root/.zshrc << 'EOF'
+    git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/plugins/zsh-completions && \
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-/root/.oh-my-zsh/custom}/themes/powerlevel10k && \
+    cat > /root/.zshrc << 'EOF'
 # Path to your oh-my-zsh installation
 export ZSH="/root/.oh-my-zsh"
 
 # Theme selection (options: robbyrussell, agnoster, powerlevel10k/powerlevel10k)
-ZSH_THEME="agnoster"
-# ZSH_THEME="powerlevel10k/powerlevel10k"  # Uncomment for powerlevel10k
+ZSH_THEME="powerlevel10k/powerlevel10k"
+# ZSH_THEME="agnoster"  # Uncomment for agnoster theme
 
 # Plugins to load
 plugins=(
@@ -80,6 +132,9 @@ plugins=(
 
 # Load oh-my-zsh
 source $ZSH/oh-my-zsh.sh
+
+# Load powerlevel10k configuration
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 # ===== CUSTOM ALIASES =====
 # Pentesting shortcuts
@@ -180,92 +235,27 @@ echo "🛠️  Custom scripts: /host-scripts/"
 echo "🔗 VPN configs: /ovpn-configs/"
 EOF
 
-# ===== OPTIONAL: POWERLEVEL10K CONFIGURATION =====
-# Uncomment the next section if you want to use powerlevel10k with pre-configured settings
-# RUN cat > /root/.p10k.zsh << 'EOF'
-# # Powerlevel10k configuration - minimal setup
-# # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-#   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-# fi
-# 
-# # Powerlevel10k settings
-# typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
-# typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs)
-# typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time time)
-# typeset -g POWERLEVEL9K_MODE='nerdfont-complete'
-# EOF
-
-# Set proper permissions and add PATH to zsh config
+# Set zsh configuration permissions and add PATH
 RUN chown root:root /root/.zshrc && \
     echo 'export PATH="/host-scripts:$PATH"' >> /root/.zshrc
 
-# Clean up systemd for container use and enable services
-RUN cd /lib/systemd/system/sysinit.target.wants/ && \
-    ls | grep -v systemd-tmpfiles-setup | xargs rm -f || true && \
-    rm -f /lib/systemd/system/multi-user.target.wants/* \
-    /etc/systemd/system/*.wants/* \
-    /lib/systemd/system/local-fs.target.wants/* \
-    /lib/systemd/system/sockets.target.wants/*udev* \
-    /lib/systemd/system/sockets.target.wants/*initctl* \
-    /lib/systemd/system/basic.target.wants/* \
-    /lib/systemd/system/anaconda.target.wants/* || true && \
-    systemctl enable postgresql && \
-    systemctl enable ssh
-
-# Create a startup script to initialize services
-RUN cat > /startup.sh << 'EOF'
-#!/bin/bash
-# Wait for systemd to be ready
-sleep 2
-
-# Start PostgreSQL if not running
-if ! systemctl is-active postgresql >/dev/null 2>&1; then
-    systemctl start postgresql
+# Configure powerlevel10k theme
+RUN cat > /root/.p10k.zsh << 'EOF'
+# Powerlevel10k configuration - minimal setup
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Initialize metasploit database if needed
-if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw msf; then
-    msfdb init
-fi
-
-# Start SSH if not running
-if ! systemctl is-active ssh >/dev/null 2>&1; then
-    systemctl start ssh
-fi
-
-echo "=== Kali Container Ready ==="
-echo "SSH: Available on forwarded port -> 22 (container)"
-echo "Metasploit: Database initialized and ready"
-echo "VPN configs: Available in /ovpn-configs"
-echo "Custom scripts: Available in /host-scripts (added to PATH)"
-echo "================================"
+# Powerlevel10k settings
+typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
+typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs)
+typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time time)
+typeset -g POWERLEVEL9K_MODE='nerdfont-complete'
 EOF
-
-RUN chmod +x /startup.sh
-
-# Create a systemd service to run our startup script
-RUN cat > /etc/systemd/system/container-init.service << 'EOF'
-[Unit]
-Description=Container Initialization
-After=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/startup.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-RUN systemctl enable container-init.service
 
 # Set working directory
 WORKDIR /root
-
-# Expose ports (documentation only - actual mapping done in docker run)
-EXPOSE 22 4444 8080 80 443
 
 # Configure systemd as init
 VOLUME [ "/sys/fs/cgroup" ]
