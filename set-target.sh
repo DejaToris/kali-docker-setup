@@ -1,0 +1,324 @@
+#!/bin/bash
+
+# Interactive script to set target environment variables
+# USAGE: 
+#   source ./set-target.sh [target_name]     - Set/update target variables
+#   source ./set-target.sh --show [name|all] - Show target variables
+#   source ./set-target.sh --unset <name>    - Clear target variables
+# DO NOT run as ./set-target.sh - the env vars won't persist!
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "ERROR: This script must be sourced, not executed directly!"
+    echo "Usage: source ./set-target.sh [target_name]"
+    echo "       source ./set-target.sh --show [name|all]"
+    echo "       source ./set-target.sh --unset <name>"
+    exit 1
+fi
+
+# Function to show target variables
+show_target() {
+    local target_name="$1"
+    if [[ "$target_name" == "all" ]]; then
+        if [[ -z "$TARGETS" ]]; then
+            echo "No targets configured."
+            return
+        fi
+        echo "=== All Configured Targets ==="
+        for target in $TARGETS; do
+            echo ""
+            show_single_target "$target"
+        done
+    else
+        local target_upper=$(echo "$target_name" | tr '[:lower:]' '[:upper:]')
+        show_single_target "$target_upper"
+    fi
+}
+
+# Function to show a single target's variables
+show_single_target() {
+    local target_upper="$1"
+    
+    # Get variable names
+    local name_var="${target_upper}_NAME"
+    local ip_var="${target_upper}_IP"
+    local hostname_var="${target_upper}_HOSTNAME"
+    local port_var="${target_upper}_PORT"
+    local username_var="${target_upper}_USER"
+    local password_var="${target_upper}_PASS"
+    
+    # Get values using indirect expansion (shell-compatible)
+    local name_val ip_val hostname_val port_val username_val password_val
+    if [[ -n "$BASH_VERSION" ]]; then
+        name_val=${!name_var}
+        ip_val=${!ip_var}
+        hostname_val=${!hostname_var}
+        port_val=${!port_var}
+        username_val=${!username_var}
+        password_val=${!password_var}
+    else
+        name_val=${(P)name_var}
+        ip_val=${(P)ip_var}
+        hostname_val=${(P)hostname_var}
+        port_val=${(P)port_var}
+        username_val=${(P)username_var}
+        password_val=${(P)password_var}
+    fi
+    
+    if [[ -z "$name_val" ]]; then
+        echo "Target '$target_upper' is not configured."
+        return
+    fi
+    
+    echo "Target: $target_upper"
+    echo "  Name: $name_val"
+    [[ -n "$ip_val" ]] && echo "  IP: $ip_val"
+    [[ -n "$hostname_val" ]] && echo "  Hostname: $hostname_val"
+    [[ -n "$port_val" ]] && echo "  Port: $port_val"
+    [[ -n "$username_val" ]] && echo "  User: $username_val"
+    [[ -n "$password_val" ]] && echo "  Pass: $password_val"
+}
+
+# Function to unset target variables
+unset_target() {
+    local target_name="$1"
+    local target_upper=$(echo "$target_name" | tr '[:lower:]' '[:upper:]')
+    
+    # Check if target exists
+    local name_var="${target_upper}_NAME"
+    local name_val
+    if [[ -n "$BASH_VERSION" ]]; then
+        name_val=${!name_var}
+    else
+        name_val=${(P)name_var}
+    fi
+    
+    if [[ -z "$name_val" ]]; then
+        echo "Target '$target_name' is not configured."
+        return
+    fi
+    
+    # Unset all variables for this target
+    unset "${target_upper}_NAME"
+    unset "${target_upper}_IP"
+    unset "${target_upper}_HOSTNAME"
+    unset "${target_upper}_PORT"
+    unset "${target_upper}_USER"
+    unset "${target_upper}_PASS"
+    
+    # Remove from TARGETS list
+    if [[ -n "$TARGETS" ]]; then
+        TARGETS=$(echo "$TARGETS" | sed "s/\b$target_upper\b//g" | xargs)
+        if [[ -z "$TARGETS" ]]; then
+            unset TARGETS
+        else
+            export TARGETS
+        fi
+    fi
+    
+    echo "Target '$target_name' has been removed."
+}
+
+# Handle command line arguments
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        --show)
+            if [[ $# -eq 1 ]]; then
+                show_target "all"
+            else
+                show_target "$2"
+            fi
+            return
+            ;;
+        --unset)
+            if [[ $# -lt 2 ]]; then
+                echo "Usage: source ./set-target.sh --unset <target_name>"
+                return 1
+            fi
+            unset_target "$2"
+            return
+            ;;
+        --help|-h)
+            echo "Usage:"
+            echo "  source ./set-target.sh [target_name]     - Set/update target variables"
+            echo "  source ./set-target.sh --show [name|all] - Show target variables"
+            echo "  source ./set-target.sh --unset <name>    - Clear target variables"
+            return
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            return 1
+            ;;
+        *)
+            # Target name provided as argument
+            preset_target_name="$1"
+            ;;
+    esac
+fi
+
+echo "=== Target Configuration ==="
+echo ""
+
+# Prompt for target name (required) or use preset
+if [[ -n "$preset_target_name" ]]; then
+    target_name="$preset_target_name"
+else
+    while true; do
+        echo -n "Enter target name (required): "
+        read target_name
+        if [[ -n "$target_name" ]]; then
+            break
+        else
+            echo "Target name is required. Please enter a name."
+        fi
+    done
+fi
+
+# Convert target name to uppercase for env vars
+target_name_upper=$(echo "$target_name" | tr '[:lower:]' '[:upper:]')
+
+# Check if this target already exists and display current values
+existing_name_var="${target_name_upper}_NAME"
+existing_name_val
+if [[ -n "$BASH_VERSION" ]]; then
+    existing_name_val=${!existing_name_var}
+else
+    existing_name_val=${(P)existing_name_var}
+fi
+
+if [[ -n "$existing_name_val" ]]; then
+    echo ""
+    echo "Target '$target_name' already exists with the following values:"
+    show_single_target "$target_name_upper"
+    echo ""
+    echo "You can update any values below (press Enter to keep existing value):"
+else
+    echo ""
+    echo "Configuring new target: $target_name"
+fi
+
+# Get existing values for prompts
+existing_ip_var="${target_name_upper}_IP"
+existing_hostname_var="${target_name_upper}_HOSTNAME"
+existing_port_var="${target_name_upper}_PORT"
+existing_username_var="${target_name_upper}_USER"
+existing_password_var="${target_name_upper}_PASS"
+
+if [[ -n "$BASH_VERSION" ]]; then
+    existing_ip=${!existing_ip_var}
+    existing_hostname=${!existing_hostname_var}
+    existing_port=${!existing_port_var}
+    existing_username=${!existing_username_var}
+    existing_password=${!existing_password_var}
+else
+    existing_ip=${(P)existing_ip_var}
+    existing_hostname=${(P)existing_hostname_var}
+    existing_port=${(P)existing_port_var}
+    existing_username=${(P)existing_username_var}
+    existing_password=${(P)existing_password_var}
+fi
+
+# Prompt for IP address (optional)
+if [[ -n "$existing_ip" ]]; then
+    echo -n "Enter target IP address (current: $existing_ip): "
+else
+    echo -n "Enter target IP address (optional): "
+fi
+read target_ip
+target_ip=$(echo "$target_ip" | tr -d '\n\r' | xargs)
+[[ -z "$target_ip" && -n "$existing_ip" ]] && target_ip="$existing_ip"
+
+# Prompt for hostname (optional)
+if [[ -n "$existing_hostname" ]]; then
+    echo -n "Enter target hostname (current: $existing_hostname): "
+else
+    echo -n "Enter target hostname (optional): "
+fi
+read target_hostname  
+target_hostname=$(echo "$target_hostname" | tr -d '\n\r' | xargs)
+[[ -z "$target_hostname" && -n "$existing_hostname" ]] && target_hostname="$existing_hostname"
+
+# Prompt for port (optional)
+if [[ -n "$existing_port" ]]; then
+    echo -n "Enter target port (current: $existing_port): "
+else
+    echo -n "Enter target port (optional): "
+fi
+read target_port
+target_port=$(echo "$target_port" | tr -d '\n\r' | xargs)
+[[ -z "$target_port" && -n "$existing_port" ]] && target_port="$existing_port"
+
+# Prompt for username (optional)
+if [[ -n "$existing_username" ]]; then
+    echo -n "Enter user (current: $existing_username): "
+else
+    echo -n "Enter user (optional): "
+fi
+read target_username
+target_username=$(echo "$target_username" | tr -d '\n\r' | xargs)
+[[ -z "$target_username" && -n "$existing_username" ]] && target_username="$existing_username"
+
+# Prompt for password (optional)
+if [[ -n "$existing_password" ]]; then
+    echo -n "Enter pass (current: $existing_password): "
+else
+    echo -n "Enter pass (optional): "
+fi
+read target_password
+target_password=$(echo "$target_password" | tr -d '\n\r' | xargs)
+[[ -z "$target_password" && -n "$existing_password" ]] && target_password="$existing_password"
+echo ""
+
+echo ""
+echo "Setting environment variables..."
+
+# Set environment variables
+export "${target_name_upper}_NAME=$target_name"
+
+# Unset variables first to ensure clean state
+unset "${target_name_upper}_IP"
+unset "${target_name_upper}_HOSTNAME" 
+unset "${target_name_upper}_PORT"
+unset "${target_name_upper}_USER"
+unset "${target_name_upper}_PASS"
+
+if [[ -n "$target_ip" ]] && [[ "$target_ip" != "" ]]; then
+    export "${target_name_upper}_IP=$target_ip"
+fi
+
+if [[ -n "$target_hostname" ]] && [[ "$target_hostname" != "" ]]; then
+    export "${target_name_upper}_HOSTNAME=$target_hostname"
+fi
+
+if [[ -n "$target_port" ]] && [[ "$target_port" != "" ]]; then
+    export "${target_name_upper}_PORT=$target_port"
+fi
+
+if [[ -n "$target_username" ]] && [[ "$target_username" != "" ]]; then
+    export "${target_name_upper}_USER=$target_username"
+fi
+
+if [[ -n "$target_password" ]] && [[ "$target_password" != "" ]]; then
+    export "${target_name_upper}_PASS=$target_password"
+fi
+
+# Add to TARGETS list if not already present
+if [[ -z "$TARGETS" ]]; then
+    export TARGETS="$target_name_upper"
+else
+    if [[ ! "$TARGETS" == *"$target_name_upper"* ]]; then
+        export TARGETS="$TARGETS $target_name_upper"
+    fi
+fi
+
+echo ""
+echo "Environment variables set:"
+echo "  ${target_name_upper}_NAME=$target_name"
+[[ -n "$target_ip" ]] && echo "  ${target_name_upper}_IP=$target_ip"
+[[ -n "$target_hostname" ]] && echo "  ${target_name_upper}_HOSTNAME=$target_hostname"
+[[ -n "$target_port" ]] && echo "  ${target_name_upper}_PORT=$target_port"
+[[ -n "$target_username" ]] && echo "  ${target_name_upper}_USER=$target_username"
+[[ -n "$target_password" ]] && echo "  ${target_name_upper}_PASS=$target_password"
+echo "  TARGETS=$TARGETS"
+echo ""
+echo "Target '$target_name' configured successfully!"

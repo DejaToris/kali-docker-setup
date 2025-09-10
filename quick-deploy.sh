@@ -114,6 +114,7 @@ docker run -d \
     --tmpfs /run \
     --tmpfs /run/lock \
     -p "$LOCAL_PORT:22" \
+    -e "CONTAINER_NAME=$CONTAINER_NAME" \
     "$BASELINE_IMAGE"
 
 # Wait for container to be ready

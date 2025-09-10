@@ -17,6 +17,10 @@ RUN mkdir -p /ovpn-configs /host-scripts /var/run/sshd && \
         postgresql \
         openssh-server \
         openvpn \
+        tshark \
+        file \
+        ftp \
+        sshpass \
         vim \
         nano \
         curl \
@@ -242,17 +246,40 @@ RUN chown root:root /root/.zshrc && \
 
 # Configure powerlevel10k theme
 RUN cat > /root/.p10k.zsh << 'EOF'
-# Powerlevel10k configuration - minimal setup
+# Powerlevel10k configuration - minimal red theme
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Powerlevel10k settings
+# Powerlevel10k settings - clean and minimal
 typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
-typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs)
-typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time time)
-typeset -g POWERLEVEL9K_MODE='nerdfont-complete'
+typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context dir)
+typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=()  # Empty right side
+typeset -g POWERLEVEL9K_MODE='ascii'  # Use ASCII mode for simplicity
+
+# Context (user@host) styling - red background
+typeset -g POWERLEVEL9K_CONTEXT_FOREGROUND='white'
+typeset -g POWERLEVEL9K_CONTEXT_BACKGROUND='red'
+typeset -g POWERLEVEL9K_CONTEXT_TEMPLATE='%n@${CONTAINER_NAME:-kali-docker}'
+
+# Directory styling
+typeset -g POWERLEVEL9K_DIR_FOREGROUND='white'
+typeset -g POWERLEVEL9K_DIR_BACKGROUND='black'
+
+# Git status styling
+typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND='white'
+typeset -g POWERLEVEL9K_VCS_CLEAN_BACKGROUND='green'
+typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND='white'
+typeset -g POWERLEVEL9K_VCS_UNTRACKED_BACKGROUND='yellow'
+typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND='white'
+typeset -g POWERLEVEL9K_VCS_MODIFIED_BACKGROUND='red'
+
+# Remove icons and separators for cleaner look
+typeset -g POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR=''
+typeset -g POWERLEVEL9K_RIGHT_SEGMENT_SEPARATOR=''
+typeset -g POWERLEVEL9K_LEFT_SUBSEGMENT_SEPARATOR=''
+typeset -g POWERLEVEL9K_RIGHT_SUBSEGMENT_SEPARATOR=''
 EOF
 
 # Set working directory
