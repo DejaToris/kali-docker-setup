@@ -233,11 +233,16 @@ if [[ "$ZSH_THEME" != "powerlevel10k/powerlevel10k" ]]; then
     PROMPT='%{$fg[cyan]%}[%D{%H:%M:%S}] '$PROMPT
 fi
 
-# Welcome message
-echo "🔥 Kali Container Ready - Happy Hacking! 🔥"
-echo "📁 Wordlists: /usr/share/seclists/"
-echo "🛠️  Custom scripts: /host-scripts/"
-echo "🔗 VPN configs: /ovpn-configs/"
+# Set default container name if not provided
+export CONTAINER_NAME=${CONTAINER_NAME:-kali-docker}
+
+# Set P10K context template with the actual container name
+typeset -g POWERLEVEL9K_CONTEXT_TEMPLATE="%n@$CONTAINER_NAME"
+
+# Auto-load targets and show welcome message
+if [[ -f "/host-scripts/set-target.sh" ]]; then
+    source /host-scripts/set-target.sh --auto-load 2>/dev/null || true
+fi
 EOF
 
 # Set zsh configuration permissions and add PATH
@@ -261,7 +266,6 @@ typeset -g POWERLEVEL9K_MODE='ascii'  # Use ASCII mode for simplicity
 # Context (user@host) styling - red background
 typeset -g POWERLEVEL9K_CONTEXT_FOREGROUND='white'
 typeset -g POWERLEVEL9K_CONTEXT_BACKGROUND='red'
-typeset -g POWERLEVEL9K_CONTEXT_TEMPLATE='%n@${CONTAINER_NAME:-kali-docker}'
 
 # Directory styling
 typeset -g POWERLEVEL9K_DIR_FOREGROUND='white'
